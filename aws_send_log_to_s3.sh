@@ -79,7 +79,7 @@ for log in "${TARGET_LOGS[@]}"; do
         cp -p ${target_log} ${temporary_directory}
 
     # True if the file exists, but the file is enpty
-    elif [ -f ${target_log} ]
+    elif [ -f ${target_log} ]; then
         log "INFO: ${target_log} is enpty. Skip send processing."
 
     else
