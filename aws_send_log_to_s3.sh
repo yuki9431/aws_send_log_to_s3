@@ -12,9 +12,7 @@ LOGFILE="/var/log/aws_send_log_to_s3.log"
 BUCKET="BUCKET"
 BUCKET_URI="BUCKET_URI"
 TARGET_LOGS=("/var/log/messages", "/var/log/http/access.log")
-MODE="zip" # zip or tar.gz
-
-return_code=0
+MODE="zip" # zip or tgz
 
 # Redirect stdout, stderr
 # Note: stdout are not displayed. stderr are output to logfile.
@@ -30,52 +28,60 @@ function log() {
 }
 
 # Compress and send to S3
-function send_file_to_s3bucket() {
+function send_dir_to_s3bucket() {
 
-    target_file=${1}
+    target_dir=${1}
     mode=${2}
 
     if [ ${mode} == "zip" ]; then
-        compressed_file=${target_file}.zip
-        ${ZIP} ${compressed_file} ${target_file}
+        compressed_file=${target_dir##*/}.zip # /tmp/hoge/fuga -> fuga.zip
+        ${ZIP} -r ${compressed_file} ${target_dir}
 
-    elif [ ${mode} == "tar.gz" ]; then
-        compressed_file=${target_file}.tgz
-        tar -czf ${compressed_file} ${target_file}
+    elif [ ${mode} == "tgz" ]; then
+        compressed_file=${target_dir##*/}.tgz  # /tmp/hoge/fuga -> fuga.tgz
+        tar -czf ${compressed_file} ${target_dir}
 
     else
-        log "ERROR: \"mode\" is invalid parameter. Use \"zip\" or \"tar.gz\"."
+        log "ERROR: \"mode\" is invalid parameter. Use \"zip\" or \"tgz\"."
         return 1
 
     fi
 
-    ${AWS} s3 cp ${compressed_file} s3://${BUCKET}/${BUCKET_URI}
+    ${AWS} s3 cp ${compressed_file} s3://${BUCKET}/${BUCKET_URI} --recursive
 
-    return ${?}
+    if [ ${?} -eq 0 ]; then
+        log "INFO: Success to send ${compressed_file} to S3."
+
+    else
+        log "ERROR: Failure to send ${compressed_file} to S3."
+        return 1
+
+    fi
+
+    return 0
 }
 
-log "Startup"
+log "Start"
 
+return_code=0
+target_date=$(date "+%Y%m%d" -d "1 day ago")
+temporary_directory="/tmp/aws_send_log_to_s3_tmp/${target_date}"
+
+mkdir -p ${temporary_directory}
+
+# Copy target log to temporary_directory
 for log in "${TARGET_LOGS[@]}"; do
 
-    target_date=$(date "+%Y%m%d" -d "1 day ago")
     target_log="${log}-${target_date}"
 
     # True if the file exists and its size is greater than 0
     if [ -s ${target_log} ]; then
-        send_file_to_s3bucket ${target_log} ${MODE}
-
-        if [ ${?} -eq 0 ]; then
-            log "INFO: Success to send ${target_log} to S3."
-
-        else
-            log "ERROR: Failure to send ${target_log} to S3."
-            return_code=1
-        fi
+        cp -p ${target_log} ${temporary_directory}
 
     # True if the file exists, but the file is enpty
     elif [ -f ${target_log} ]
         log "INFO: ${target_log} is enpty. Skip send processing."
+
     else
         log "ERROR: not fount ${target_log}"
         return_code=1
@@ -83,5 +89,8 @@ for log in "${TARGET_LOGS[@]}"; do
 
 done
 
+send_dir_to_s3bucket ${temporary_directory} ${MODE}
+rm -rf ${temporary_directory}
 log "Finish"
+
 exit ${return_code}
