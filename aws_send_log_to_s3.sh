@@ -7,7 +7,7 @@
 AWS="aws"
 ZIP="zip"
 
-# Note: Change parameter before use aws_send_log_to_s3.sh
+# Note: Customize variable parameters before use aws_send_log_to_s3.sh
 LOGFILE="/var/log/aws_send_log_to_s3.log"
 BUCKET="BUCKET"
 BUCKET_URI="BUCKET_URI/" # If you upload to folder, must be / in suffix.
