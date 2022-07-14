@@ -7,11 +7,11 @@
 AWS="aws"
 ZIP="zip"
 
-# Note: Change parameter before use ./aws_send_log_to_s3.sh
+# Note: Change parameter before use aws_send_log_to_s3.sh
 LOGFILE="/var/log/aws_send_log_to_s3.log"
 BUCKET="BUCKET"
-BUCKET_URI="BUCKET_URI"
-TARGET_LOGS=("/var/log/messages", "/var/log/http/access.log")
+BUCKET_URI="BUCKET_URI/" # If you upload to folder, must be / in suffix.
+TARGET_LOGS=("/var/log/messages" "/var/log/http/access.log")
 MODE="zip" # zip or tgz
 
 # Redirect stdout, stderr
@@ -35,7 +35,7 @@ function send_dir_to_s3bucket() {
 
     if [ ${mode} == "zip" ]; then
         compressed_file=${target_dir##*/}.zip # /tmp/hoge/fuga -> fuga.zip
-        ${ZIP} -r ${compressed_file} ${target_dir}
+        ${ZIP} -j ${compressed_file} ${target_dir}/*
 
     elif [ ${mode} == "tgz" ]; then
         compressed_file=${target_dir##*/}.tgz  # /tmp/hoge/fuga -> fuga.tgz
@@ -47,17 +47,18 @@ function send_dir_to_s3bucket() {
 
     fi
 
-    ${AWS} s3 cp ${compressed_file} s3://${BUCKET}/${BUCKET_URI} --recursive
+    ${AWS} s3 cp ${compressed_file} s3://${BUCKET}/${BUCKET_URI}
 
     if [ ${?} -eq 0 ]; then
-        log "INFO: Success to send ${compressed_file} to S3."
+        log "INFO: Success to send ${compressed_file} to s3://${BUCKET}/${BUCKET_URI}."
 
     else
-        log "ERROR: Failure to send ${compressed_file} to S3."
+        log "ERROR: Failure to send ${compressed_file} to s3://${BUCKET}/${BUCKET_URI}."
         return 1
 
     fi
 
+    rm -f ${compressed_file}
     return 0
 }
 
